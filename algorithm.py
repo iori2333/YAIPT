@@ -42,15 +42,15 @@ def denoise(img: ndarray) -> ndarray:
         padding = (k - 1) // 2
         padded = np.pad(channel, padding)
 
+        @np.vectorize
         def get_median(x: int, y: int):
             return np.median(padded[x - 1:x + 2, y - 1:y + 2])
 
-        v_median = np.frompyfunc(get_median, 2, 1)
         h, w = channel.shape
         xx, yy = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
         xx += padding
         yy += padding
-        ret = v_median(xx, yy)
+        ret = get_median(xx, yy)
         return ret.astype(np.float)
 
     if img.ndim == 2:
