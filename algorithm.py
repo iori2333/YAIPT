@@ -27,7 +27,32 @@ def equalize(img: ndarray) -> ndarray:
 
 
 def denoise(img: ndarray) -> ndarray:
-    return None
+    k = 3
+
+    def one_channel_denoise(channel: ndarray) -> ndarray:
+        assert channel.ndim == 2
+
+        padding = (k - 1) // 2
+        padded = np.pad(channel, padding)
+
+        def get_median(x: int, y: int):
+            return np.median(padded[x - 1:x + 2, y - 1:y + 2])
+
+        v_median = np.frompyfunc(get_median, 2, 1)
+        h, w = channel.shape
+        xx, yy = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
+        xx += padding
+        yy += padding
+        ret = v_median(xx, yy)
+        return ret.astype(np.float)
+
+    if img.ndim == 2:
+        return one_channel_denoise(img)
+
+    dst = img.copy()
+    for i in range(img.ndim):
+        dst[:, :, i] = one_channel_denoise(dst[:, :, i])
+    return dst
 
 
 def interpolate(img: ndarray) -> ndarray:
