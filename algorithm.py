@@ -1,4 +1,5 @@
 import numpy as np
+import skimage.exposure
 from numpy import ndarray
 
 
@@ -7,7 +8,23 @@ def plane(img: ndarray) -> ndarray:
 
 
 def equalize(img: ndarray) -> ndarray:
-    return None
+    def one_channel_equalize(channel: ndarray) -> ndarray:
+        assert channel.ndim == 2
+        hist, bins = np.histogram(channel.flatten(), 256)
+        freq_sum = hist.cumsum()
+        freq_sum = freq_sum / freq_sum[-1]
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+        out = np.interp(channel.flat, bin_centers, freq_sum)
+        ret = out.reshape(channel.shape)
+        return ret
+
+    if img.ndim == 2:
+        return one_channel_equalize(img)
+
+    dst = img.copy()
+    for i in range(img.ndim):
+        dst[:, :, i] = one_channel_equalize(dst[:, :, i])
+    return dst
 
 
 def denoise(img: ndarray) -> ndarray:
