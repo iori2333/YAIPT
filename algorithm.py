@@ -3,7 +3,14 @@ from numpy import ndarray
 
 
 def plane(img: ndarray) -> ndarray:
-    return None
+    assert img.ndim == 2
+    h, w = img.shape
+    ret = np.ones((3 * h, 3 * w), dtype=np.uint8)
+    for i in range(8):
+        r, c = (7 - i) // 3, (7 - i) % 3
+        ret[r * h: (r + 1) * h, c * w:(c + 1) * w] = \
+            np.bitwise_and(img, 1 << i) >> i
+    return ret
 
 
 def equalize(img: ndarray) -> ndarray:
