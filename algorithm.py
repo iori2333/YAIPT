@@ -104,7 +104,117 @@ def butterworth(img: ndarray) -> ndarray:
 
 
 def canny(img: ndarray) -> ndarray:
-    return None
+    assert img.ndim == 2
+    if img.dtype == np.float:
+        img = (img * 255).astype(np.uint8)
+
+    def img_filter(im: ndarray, kernel: np.ndarray):
+        padding = (kernel.shape[-1] - 1) // 2
+        padded = np.pad(im, padding)
+        h, w = im.shape
+        xx, yy = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
+        xx += padding
+        yy += padding
+
+        @np.vectorize
+        def core(x: int, y: int):
+            return (padded[x - padding:x + padding + 1, y - padding:y + padding + 1] * kernel).sum()
+
+        return core(xx, yy).astype(np.float)
+
+    # Step.1 Gaussian filter
+    gaussian_kernel = np.array([
+        [2, 4, 5, 4, 2],
+        [4, 9, 12, 9, 4],
+        [5, 12, 15, 12, 5],
+        [4, 9, 12, 9, 4],
+        [2, 4, 5, 4, 2],
+    ]) / 159
+    filtered = img_filter(img, gaussian_kernel).astype(np.uint8)
+
+    # Step.2 Calc gradients and their directions
+    sobel_x = np.array([
+        [-1, 0, 1],
+        [-2, 0, 2],
+        [-1, 0, 1],
+    ], dtype=np.float)
+    sobel_y = np.array([
+        [-1, -2, -1],
+        [0, 0, 0],
+        [1, 2, 1],
+    ], dtype=np.float)
+
+    Gx = img_filter(filtered, sobel_x)
+    Gy = img_filter(filtered, sobel_y)
+    G = np.sqrt(Gx ** 2, Gy ** 2).astype(np.uint8)
+    tangents = Gy / (Gx + 1e-12)
+    theta = np.arctan(tangents)
+
+    # Step.3 Non-max suppression
+    gh, gw = G.shape
+    dst = G[1:-1, 1:-1].copy()
+
+    for i in range(1, gh - 1):
+        for j in range(1, gw - 1):
+            angle = theta[i, j]
+            if angle > np.pi / 4:
+                d_up = [0, 1]
+                d_down = [1, 1]
+                weight = 1 / tangents[i, j]
+            elif angle >= 0:
+                d_up = [1, 0]
+                d_down = [1, 1]
+                weight = tangents[i, j]
+            elif angle >= - np.pi / 4:
+                d_up = [1, 0]
+                d_down = [1, -1]
+                weight = -tangents[i, j]
+            else:
+                d_up = [0, -1]
+                d_down = [1, -1]
+                weight = -1 / tangents[i, j]
+
+            gu1 = G[i + d_up[0], j + d_up[1]]
+            gd1 = G[i + d_down[0], j + d_down[1]]
+            gu2 = G[i - d_up[0], j - d_up[1]]
+            gd2 = G[i - d_down[0], j - d_down[1]]
+
+            gc1 = gu1 * weight + gd1 * (1 - weight)
+            gc2 = gu2 * weight + gd2 * (1 - weight)
+
+            if gc1 > G[i, j] or gc2 > G[i, j]:
+                dst[i - 1, j - 1] = 0
+
+    # Step.4 Two thresholds
+    hist, bins = np.histogram(filtered.flatten(), 256)
+    freq_sum = hist.cumsum()
+    freq_sum = freq_sum / freq_sum[-1]
+    th1, th2 = 0, 255
+    for index, value in enumerate(freq_sum):
+        if value > 0.4 and th1 == 0:
+            th1 = index
+        if value > 0.8:
+            th2 = index
+            break
+
+    dst[dst < th1] = 0
+    dst[dst >= th2] = 255
+
+    dh, dw = dst.shape
+    for i in range(1, dh - 1):
+        for j in range(1, dw - 1):
+            if 0 < dst[i, j] < 255:
+                dst[i, j] = 255 \
+                    if any([dst[i, j - 1] == 255,
+                            dst[i, j + 1] == 255,
+                            dst[i - 1, j] == 255,
+                            dst[i + 1, j] == 255,
+                            dst[i + 1, j + 1] == 255,
+                            dst[i - 1, j - 1] == 255,
+                            dst[i + 1, j - 1] == 255,
+                            dst[i - 1, j + 1] == 255]) \
+                    else 0
+    return dst
 
 
 def morphology(img: ndarray) -> ndarray:
