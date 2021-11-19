@@ -218,4 +218,47 @@ def canny(img: ndarray) -> ndarray:
 
 
 def morphology(img: ndarray) -> ndarray:
-    return None
+    assert img.ndim == 2
+    if img.dtype == np.float:
+        img = (img * 255).astype(np.uint8)
+
+    def img_filter(im: ndarray, padding: int, core_func):
+        h, w = im.shape
+        xx, yy = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
+        xx += padding
+        yy += padding
+
+        return core_func(xx, yy).astype(np.float)
+
+    def erode(im: ndarray) -> ndarray:
+        kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.float)
+        padding = (kernel.shape[-1] - 1) // 2
+        padded = np.pad(im, padding)
+
+        @np.vectorize
+        def core(x: int, y: int):
+            return (padded[x - padding:x + padding + 1, y - padding:y + padding + 1] * kernel).sum() >= 255
+
+        mask = img_filter(im, padding, core).astype(np.bool)
+        dst = im.copy()
+        dst[mask] = 255
+        return dst
+
+    def dilate(im: ndarray) -> ndarray:
+        kernel = np.array([[1, 0, 1], [0, 1, 0], [1, 0, 1]], dtype=np.float)
+        padding = (kernel.shape[-1] - 1) // 2
+        padded = np.pad(im, padding)
+
+        @np.vectorize
+        def core(x: int, y: int):
+            return (padded[x - padding:x + padding + 1, y - padding:y + padding + 1] * kernel).sum() < 255 * 4
+
+        mask = img_filter(im, padding, core).astype(np.bool)
+        dst = im.copy()
+        dst[mask] = 0
+        return dst
+
+    ret = erode(img)
+    ret = dilate(ret)
+
+    return ret
