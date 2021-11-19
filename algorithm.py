@@ -44,7 +44,9 @@ def denoise(img: ndarray) -> ndarray:
 
         @np.vectorize
         def get_median(x: int, y: int):
-            return np.median(padded[x - 1:x + 2, y - 1:y + 2])
+            return np.median(
+                padded[x - padding:x + padding + 1, y - padding:y + padding + 1]
+            )
 
         h, w = channel.shape
         xx, yy = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
